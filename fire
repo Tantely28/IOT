@@ -1,0 +1,182 @@
+
+ #if ARDUINO >= 100
+ #include "Arduino.h"
+ #endif 
+ 
+ #include <OneWire.h>
+ #include <SPI.h> //bibliothèqe pour SPI
+ #include <Ethernet.h> //bibliothèque pour Ethernet
+
+byte mac[] = {0x90, 0xA2, 0xDA, 0x0F, 0xDF, 0xAB}; //adresse mac de votre carte
+byte ip[] = {192, 168, 137, 10}; //adresse IP
+IPAddress dsServer (192, 168, 137, 1);
+IPAddress gateway (192, 168, 137, 1);
+IPAddress subnet (255, 255, 255, 0);
+EthernetServer serveur(80); // déclare l'objet serveur au port d'écoute 80
+EthernetClient client;
+ 
+/* Mesure de la qualité de l'air */
+// pin utilisé
+int pinGaz = A0;
+int pinPotG = A1;
+
+// variables
+int valGaz = 0;
+int valPotG = 0;
+
+/*Mesure de la température*/
+// pin utilisé
+enum DS18B20_RCODES
+{
+  READ_OK,
+  NO_SENSOR_FOUND,
+  INVALID_ADDRESS,
+  INVALID_SENSOR
+};
+
+OneWire ds(7);
+
+/**
+ * Fonction de lecture de la température via un capteur DS18B20.
+ */
+ 
+ byte getTemperature(float *temperature, byte reset_search) {
+  byte data[9], addr[8];
+  // data[] : Données lues depuis le scratchpad
+  // addr[] : Adresse du module 1-Wire détecté
+   /* Reset le bus 1-Wire ci nécessaire (requis pour la lecture du premier capteur) */
+  if (reset_search) {
+    ds.reset_search();
+  }
+ 
+  /* Recherche le prochain capteur 1-Wire disponible */
+  if (!ds.search(addr)) {
+    // Pas de capteur
+    return NO_SENSOR_FOUND;
+  }
+  
+  /* Vérifie que l'adresse a été correctement reçue */
+  if (OneWire::crc8(addr, 7) != addr[7]) {
+    // Adresse invalide
+    return INVALID_ADDRESS;
+  }
+ 
+  /* Vérifie qu'il s'agit bien d'un DS18B20 */
+  if (addr[0] != 0x28) {
+    // Mauvais type de capteur
+    return INVALID_SENSOR;
+  }
+ 
+  /* Reset le bus 1-Wire et sélectionne le capteur */
+  ds.reset();
+  ds.select(addr);
+  
+  /* Lance une prise de mesure de température et attend la fin de la mesure */
+  ds.write(0x44, 1);
+  delay(800);
+  
+  /* Reset le bus 1-Wire, sélectionne le capteur et envoie une demande de lecture du scratchpad */
+  ds.reset();
+  ds.select(addr);
+  ds.write(0xBE);
+ 
+ /* Lecture du scratchpad */
+  for (byte i = 0; i < 9; i++) {
+    data[i] = ds.read();
+  }
+   
+  /* Calcul de la température en degré Celsius */
+  *temperature = (int16_t) ((data[1] << 8) | data[0]) * 0.0625; 
+  
+  // Pas d'erreur
+  return READ_OK;
+}
+  String A = "Alerte Feu";
+  String B = "Presence d'alcool";
+  String C = "Hausse anormale du Co2";
+
+ // int 1 = 
+  /* fonction d'envoi */
+   void alert(String u) {
+   client.println("<!DOCTYPE HTML>"); // informe le navigateur du type de document à afficher
+   client.println(u); //code html
+   client.stop(); //on déconnecte le client
+   Serial.println("Fin de communication avec le client");
+  }
+ 
+   
+void setup() {
+  Serial.begin (9600); //initialisation de communication série
+  Ethernet.begin (mac, ip); //initialisatio de la communication Ethernet
+  Serial.print("\nLe serveur est sur l'adresse : ");
+  Serial.println(Ethernet.localIP()); //on affiche l'adresse IP de la connexion
+  serveur.begin(); // démarre l'écoute
+//air
+pinMode(pinGaz, INPUT);
+pinMode(pinPotG, INPUT);
+
+}
+
+void loop() {
+  EthernetClient client = serveur.available();
+  valGaz = analogRead (pinGaz);
+  valPotG= analogRead (pinPotG);
+  float temperature;
+   
+  /* Lit la température ambiante à ~1Hz */
+  if (getTemperature(&temperature, true) != READ_OK) {
+    Serial.println(F("Erreur de lecture du capteur"));
+    return;
+  }
+
+  
+  if (serveur.available()){ //si client connecté
+    Serial.println("Client"); //on le dit...
+    Serial.println(valGaz);
+    Serial.println(valPotG);
+     /* Affiche la température */
+  Serial.print(F("Temperature : "));
+  Serial.print(temperature, 2);
+  Serial.write(176); // Caractère degré
+  Serial.write('C');
+  Serial.println();
+
+    
+    if (client.connected())
+    {
+      while(client.available())
+      {
+        if(valGaz > 760 && temperature > 3)
+        {
+          Serial.println("Alerte Feu");
+          delay(1000);
+          
+          // réponse client
+          alert(A);
+       
+        }
+        else {
+        if(valGaz > 700)
+        {
+          Serial.println("Presence d'alcool");
+          delay(1000);
+          
+          // réponse client
+          alert(B);          
+        }
+        else {
+         if(valGaz > 500 )
+        {
+          Serial.println("Hausse anormale du Co2");
+          delay(1000);
+          
+          // réponse client
+           alert(C);
+          
+        }
+        }
+      }
+     }
+    }
+  }
+}
