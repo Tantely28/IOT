@@ -13,7 +13,7 @@ IPAddress dsServer (192, 168, 137, 1);
 IPAddress gateway (192, 168, 137, 1);
 IPAddress subnet (255, 255, 255, 0);
 EthernetServer serveur(80); // déclare l'objet serveur au port d'écoute 80
-EthernetClient client;
+
 
 /* Fonction d'envoi */
   String A = "Alerte Feu";
@@ -46,57 +46,66 @@ int valPotG = 0;
  * Fonction de lecture de la température via un capteur DS18B20.
  */
  
- byte getTemperature(float *temperature, byte reset_search) {
-  byte data[9], addr[8];
-  // data[] : Données lues depuis le scratchpad
-  // addr[] : Adresse du module 1-Wire détecté
-   /* Reset le bus 1-Wire ci nécessaire (requis pour la lecture du premier capteur) */
-  if (reset_search) {
-    ds.reset_search();
-  }
+ byte getTemperature(float *temperature, byte reset_search) 
+                                                          {
+                                                          byte data[9], addr[8];
+                                                          // data[] : Données lues depuis le scratchpad
+                                                          // addr[] : Adresse du module 1-Wire détecté
+                                                         /* Reset le bus 1-Wire ci nécessaire (requis pour la lecture du premier capteur) */
+                                                         if (reset_search) {
+                                                                            ds.reset_search();
+                                                                           }
  
   /* Recherche le prochain capteur 1-Wire disponible */
-  if (!ds.search(addr)) {
-    // Pas de capteur
-    return NO_SENSOR_FOUND;
-  }
+  
+  if (!ds.search(addr)) 
+                          {
+                           // Pas de capteur
+                           return NO_SENSOR_FOUND;
+                          }
   
   /* Vérifie que l'adresse a été correctement reçue */
-  if (OneWire::crc8(addr, 7) != addr[7]) {
-    // Adresse invalide
-    return INVALID_ADDRESS;
-  }
+ 
+ if (OneWire::crc8(addr, 7) != addr[7]) {
+                                        // Adresse invalide
+                                        return INVALID_ADDRESS;
+                                        }
  
   /* Vérifie qu'il s'agit bien d'un DS18B20 */
-  if (addr[0] != 0x28) {
-    // Mauvais type de capteur
-    return INVALID_SENSOR;
-  }
+ 
+ if (addr[0] != 0x28) {
+                      // Mauvais type de capteur
+                      return INVALID_SENSOR;
+                      }
  
   /* Reset le bus 1-Wire et sélectionne le capteur */
+  
   ds.reset();
   ds.select(addr);
   
   /* Lance une prise de mesure de température et attend la fin de la mesure */
+  
   ds.write(0x44, 1);
   delay(800);
   
   /* Reset le bus 1-Wire, sélectionne le capteur et envoie une demande de lecture du scratchpad */
+  
   ds.reset();
   ds.select(addr);
   ds.write(0xBE);
  
  /* Lecture du scratchpad */
+  
   for (byte i = 0; i < 9; i++) {
-    data[i] = ds.read();
-  }
+                                data[i] = ds.read();
+                               }
    
   /* Calcul de la température en degré Celsius */
   *temperature = (int16_t) ((data[1] << 8) | data[0]) * 0.0625; 
   
   // Pas d'erreur
   return READ_OK;
-}
+                                                               }
 
 
 
@@ -140,53 +149,54 @@ void loop()
 
     /* Connexion du client */
     if (serveur.available())
-    { //si client connecté
-     Serial.println("Client"); //on le dit...
-     Serial.println(valGaz);
-     Serial.println(valPotG);
+                           { 
+                           //si client connecté
+                           Serial.println("Client"); //on le dit...
+                           Serial.println(valGaz);
+                           Serial.println(valPotG);
      
-     /* Affiche la température */
-     Serial.print(F("Temperature : "));
-     Serial.print(temperature, 2);
-     Serial.write(176); // Caractère degré
-     Serial.write('C');
-     Serial.println();
+                          /* Affiche la température */
+                          Serial.print(F("Temperature : "));
+                          Serial.print(temperature, 2);
+                          Serial.write(176); // Caractère degré
+                          Serial.write('C');
+                          Serial.println();
 
     
-    if (client.connected())
-    {
-      while(client.available())
-      {
-        if(valGaz > 760 && temperature > 33)
-        {
-          Serial.println("Alerte Feu");
-          delay(1000);
+             if (client.connected())
+                                    {
+                                     while(client.available())
+                                                              {
+                                                               if(valGaz > 760 && temperature > 33)
+                                                                                                    {
+                                                                                                     Serial.println("Alerte Feu");
+                                                                                                     delay(1000);
           
-          // réponse client
-          alert(A);
-       
-        }
-           else {
-                 if(valGaz > 700)
-                   {
-                    Serial.println("Presence d'alcool");
-                    delay(1000);
-          
-                    // réponse client
-                    alert(B);          
-                   }
-                else {
-                      if(valGaz > 500 )
-                        {
-                         Serial.println("Hausse anormale du Co2");
-                         delay(1000);
-          
-                         // réponse client
-                         alert(C);
-                         }
-                     }
-                  }
-          }
-      }
-  }
-}
+                                                                                                     // réponse client
+                                                                                                       alert(A);
+
+                                                                                                     }
+                                                                                                        else {
+                                                                                                              if(valGaz > 700)
+                                                                                                                {
+                                                                                                                 Serial.println("Presence d'alcool");
+                                                                                                                 delay(1000);
+
+                                                                                                                 // réponse client
+                                                                                                                 alert(B);          
+                                                                                                                }
+                                                                                                             else {
+                                                                                                                   if(valGaz > 500 )
+                                                                                                                     {
+                                                                                                                      Serial.println("Hausse anormale du Co2");
+                                                                                                                      delay(1000);
+
+                                                                                                                      // réponse client
+                                                                                                                      alert(C);
+                                                                                                                     }
+                                                                                                                   }
+                                                                                                              }
+                                                                 }
+                                     }
+                            }
+     }
